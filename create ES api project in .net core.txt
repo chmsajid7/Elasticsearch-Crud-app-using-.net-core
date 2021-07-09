@@ -1,0 +1,113 @@
+API project for ElasticSearch:
+
+1. deploy ES enterprice edition(elastic.co), at final do changes in appsettings file.
+2. download nuGet: "NEST"
+
+***************************************************************************************************************************
+3. Controller File:
+
+using Microsoft.AspNetCore.Mvc;
+using Nest;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace ES.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UsersController : ControllerBase
+    {
+        private readonly IElasticClient elasticClient;
+
+        public UsersController(IElasticClient elasticClient)
+        {
+            this.elasticClient = elasticClient;
+        }
+
+        [HttpGet]
+        public async Task<User> Get(string Name)
+        {
+            var res = await elasticClient.SearchAsync<User>(s => s
+              .Index("users")
+              .Query(q => q.Match(m => m.Field(f => f.Name).Query(Name))));
+
+            return res?.Documents?.FirstOrDefault();
+        }
+
+        [HttpPost]
+        public async Task<string> Post([FromBody] User value)
+        {
+            var res = await elasticClient.IndexAsync<User>(value, x => x.Index("users"));
+            return res.Id;
+        }
+    }
+}
+
+***************************************************************************************************************************
+4. appsettings File:
+
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "AllowedHosts": "*",
+  "elasticsearch": {
+    "index": "abc", //useless
+    "url": "https://enterprise-search-deployment-4fdabb.es.eastus2.azure.elastic-cloud.com:9243/",
+    "user": "elastic",
+    "pass": "lVNDwJlyEacJoUwDoiHDyz0G"
+  }
+  //elastic login details
+  //id: muhammadsajid2588.........
+  //pass:034........
+}
+
+
+***************************************************************************************************************************
+5. Paste following code in ConfigureServices in startup file:
+
+public void ConfigureServices(IServiceCollection services)
+        {
+
+            services.AddControllers();
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "ES", Version = "v1" });
+            });
+
+            #region ES
+            //ElasticSearch
+            var url = Configuration["elasticsearch:url"];
+            var defaultIndex = Configuration["elasticsearch:index"];
+            var elasticSeachSettings = new ConnectionSettings(new Uri(url))
+                .DefaultIndex(defaultIndex);
+            elasticSeachSettings.BasicAuthentication(Configuration["elasticsearch:user"], Configuration["elasticsearch:pass"]);
+            var elasticClient = new ElasticClient(elasticSeachSettings);
+            services.AddSingleton(elasticClient);
+            services.AddSignalR();
+            services.AddSingleton<IElasticClient>(new ElasticClient(elasticSeachSettings));
+            #endregion
+        }
+
+***************************************************************************************************************************
+6. User class in Project:
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace ES
+{
+    public class User
+    {
+        public string Name { get; set; }
+        public string Age { get; set; }
+    }
+}
